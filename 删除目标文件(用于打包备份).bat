@@ -5,6 +5,7 @@ del /Q project\MDK-ARM(uV4)\*.bak
 del /Q project\MDK-ARM(uV4)\*.dep
 del /Q project\MDK-ARM(uV4)\JLink*
 del /Q project\MDK-ARM(uV4)\project.uvgui.*
+del /Q project\MDK-ARM(uV4)\project.uvguix.*
 
 del /Q project\EWARMv7\Project.dep
 del /Q project\EWARMv7\Flash
