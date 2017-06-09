@@ -81,6 +81,9 @@
  *
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
+/*打开串口输出task信息*/
+#define __SysInfoTest
+ 
 #define configUSE_PREEMPTION		1
 #define configUSE_IDLE_HOOK			0
 #define configUSE_TICK_HOOK			0
@@ -90,7 +93,11 @@
 #define configMINIMAL_STACK_SIZE	( ( unsigned short ) 128 )
 #define configTOTAL_HEAP_SIZE		( ( size_t ) ( 17 * 1024 ) )
 #define configMAX_TASK_NAME_LEN		( 16 )
+
+#ifndef  __SysInfoTest
 #define configUSE_TRACE_FACILITY	0
+#endif
+
 #define configUSE_16_BIT_TICKS		0
 #define configIDLE_SHOULD_YIELD		1
 
@@ -145,6 +152,16 @@ standard names. */
 #define xPortPendSVHandler PendSV_Handler
 #define xPortSysTickHandler SysTick_Handler
 
+#ifdef __SysInfoTest
+/*串口输出task信息时使用*/
+ extern volatile uint32_t ulHighFrequencyTimerTicks;
+#define configUSE_TRACE_FACILITY	                  1
+#define configGENERATE_RUN_TIME_STATS               1
+#define configUSE_STATS_FORMATTING_FUNCTIONS        1
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()    (ulHighFrequencyTimerTicks = 0ul)
+#define portGET_RUN_TIME_COUNTER_VALUE()            ulHighFrequencyTimerTicks
+/****/
+#endif /*__SysInfoTest*/
 
 #endif /* FREERTOS_CONFIG_H */
 

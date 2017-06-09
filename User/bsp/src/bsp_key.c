@@ -35,9 +35,9 @@
 
 /*
 	安富莱STM32-V4 按键口线分配：
-		K1 键      : PC13   (低电平表示按下)
-		K2 键      : PA0    ( --- 高电平表示按下)
-		K3 键      : PG8    (低电平表示按下)
+		K1 键      : PE5   (低电平表示按下)
+		K2 键      : PE4    (低电平表示按下)
+		K3 键      : PE3    (低电平表示按下)
 		摇杆UP键   : PG15   (低电平表示按下)
 		摇杆DOWN键 : PD3    (低电平表示按下)
 		摇杆LEFT键 : PG14   (低电平表示按下)
@@ -46,16 +46,16 @@
 */
 
 /* 按键口对应的RCC时钟 */
-#define RCC_ALL_KEY 	(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOC | RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOG)
+#define RCC_ALL_KEY 	(RCC_APB2Periph_GPIOE /*| RCC_APB2Periph_GPIOC | RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOG*/)
 
-#define GPIO_PORT_K1    GPIOC
-#define GPIO_PIN_K1	    GPIO_Pin_13
+#define GPIO_PORT_K1    GPIOE
+#define GPIO_PIN_K1	    GPIO_Pin_5
 
-#define GPIO_PORT_K2    GPIOA
-#define GPIO_PIN_K2	    GPIO_Pin_0
+#define GPIO_PORT_K2    GPIOE
+#define GPIO_PIN_K2	    GPIO_Pin_4
 
-#define GPIO_PORT_K3    GPIOG
-#define GPIO_PIN_K3	    GPIO_Pin_8
+#define GPIO_PORT_K3    GPIOE
+#define GPIO_PIN_K3	    GPIO_Pin_3
 
 #define GPIO_PORT_K4    GPIOG
 #define GPIO_PIN_K4	    GPIO_Pin_15
@@ -88,7 +88,7 @@ static void bsp_DetectKey(uint8_t i);
 *********************************************************************************************************
 */
 /* 安富莱 STM32-V4 开发板 */
-#if 1	/* 为了区分3个事件:　K1单独按下, K2单独按下， K1和K2同时按下 */
+#if 0	/* 为了区分3个事件:　K1单独按下, K2单独按下， K1和K2同时按下 */
 static uint8_t IsKeyDown1(void)
 {
 	if ((GPIO_PORT_K1->IDR & GPIO_PIN_K1) == 0 && (GPIO_PORT_K2->IDR & GPIO_PIN_K2) == 0
@@ -131,7 +131,7 @@ static uint8_t IsKeyDown10(void)	/* K2 K3组合键 */
 }
 #else	
 static uint8_t IsKeyDown1(void) {if ((GPIO_PORT_K1->IDR & GPIO_PIN_K1) == 0) return 1;else return 0;}
-static uint8_t IsKeyDown2(void) {if ((GPIO_PORT_K2->IDR & GPIO_PIN_K2) != 0) return 1;else return 0;}
+static uint8_t IsKeyDown2(void) {if ((GPIO_PORT_K2->IDR & GPIO_PIN_K2) == 0) return 1;else return 0;}
 static uint8_t IsKeyDown3(void) {if ((GPIO_PORT_K3->IDR & GPIO_PIN_K3) == 0) return 1;else return 0;}
 
 static uint8_t IsKeyDown9(void) {if (IsKeyDown1() && IsKeyDown2()) return 1;else return 0;}		/* K1 K2组合键 */
@@ -488,7 +488,7 @@ void bsp_KeyScan(void)
 {
 	uint8_t i;
 
-	for (i = 0; i < KEY_COUNT; i++)
+	for (i = 0; i < KEY_SCAN_COUNT; i++)
 	{
 		bsp_DetectKey(i);
 	}

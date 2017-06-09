@@ -24,7 +24,7 @@
 *                                        2. BSP驱动包V1.2
 *                                        3. FreeRTOS版本V8.2.3
 *
-*	Copyright (C), 2016-2020, 安富莱电子 www.armfly.com
+*	Copyright (C), 2016-2020,BayNexus 
 *
 *********************************************************************************************************
 */
@@ -77,6 +77,11 @@ int main(void)
 	/* 硬件初始化 */
 	bsp_Init(); 
 	
+	/* 1. 初始化一个定时器中断，精度高于滴答定时器中断，这样才可以获得准确的系统信息 仅供调试目的，实际项
+		  目中不要使用，因为这个功能比较影响系统实时性。
+	   2. 为了正确获取FreeRTOS的调试信息，可以考虑将上面的关闭中断指令__set_PRIMASK(1); 注释掉。 
+	*/
+	vSetupSysInfoTest();
 	/* 创建任务 */
 	AppTaskCreate();
 	
@@ -102,10 +107,37 @@ int main(void)
 */
 static void vTaskTaskUserIF(void *pvParameters)
 {
+	uint8_t ucKeyCode;
+	uint8_t pcWriteBuffer[500];
+	
     while(1)
     {
-		bsp_LedToggle(1);
-		vTaskDelay(100);
+			ucKeyCode = bsp_GetKey();
+		
+			if (ucKeyCode != KEY_NONE)
+			{
+				switch (ucKeyCode)
+				{
+			/* K1键按下 打印任务执行情况 */
+			case KEY_DOWN_K1:			 
+				printf("=================================================\r\n");
+				printf("任务名      任务状态 优先级   剩余栈 任务序号\r\n");
+				vTaskList((char *)&pcWriteBuffer);
+				printf("%s\r\n", pcWriteBuffer);
+				
+				printf("\r\n任务名       运行计数         使用率\r\n");
+				vTaskGetRunTimeStats((char *)&pcWriteBuffer);
+				printf("%s\r\n", pcWriteBuffer);
+			break;
+				/* 其他的键值不处理 */
+				default:                     
+					break;
+			}
+			bsp_LedToggle(1);
+		}
+		
+		vTaskDelay(20);
+		
 	}
 }
 
@@ -158,9 +190,9 @@ static void vTaskStart(void *pvParameters)
 {
     while(1)
     {
-		/* LED闪烁 */
-		bsp_LedToggle(4);
-        vTaskDelay(400);
+		/* 按键扫描 */
+		bsp_KeyScan();
+        vTaskDelay(10);
     }
 }
 
@@ -205,4 +237,4 @@ static void AppTaskCreate (void)
                  &xHandleTaskStart );   /* 任务句柄  */
 }
 
-/***************************** 安富莱电子 www.armfly.com (END OF FILE) *********************************/
+/***************************** BayNexus (END OF FILE) *********************************/
