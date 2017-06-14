@@ -13,6 +13,9 @@
 *                    vTaskLED        任务: LED闪烁
 *                    vTaskMsgPro     任务: 信息处理，这里是用作LED闪烁
 *                    vTaskStart      任务: 启动任务，也就是最高优先级任务，这里用作LED闪烁
+*             1. K2长按下，挂起vTaskLED；
+*							2. K3键按下，启动单次定时器中断，50ms后在定时器中断将任务vTaskLED恢复。
+*              注意事项：
 *              注意事项：
 *                 1. 本实验推荐使用串口软件SecureCRT，要不串口打印效果不整齐。此软件在
 *                    V4开发板光盘里面有。
@@ -20,7 +23,7 @@
 *
 *	修改记录 :
 *		版本号    日期         作者            说明
-*       V1.0    2016-03-15   Eric2013    1. ST固件库到V3.6.1版本
+*       V1.0   2017          Eric    1. ST固件库到V3.6.1版本
 *                                        2. BSP驱动包V1.2
 *                                        3. FreeRTOS版本V8.2.3
 *
@@ -42,7 +45,7 @@ static void vTaskLED(void *pvParameters);
 static void vTaskMsgPro(void *pvParameters);
 static void vTaskStart(void *pvParameters);
 static void AppTaskCreate (void);
-
+static void TIM_CallBack1(void);
 /*
 **********************************************************************************************************
 											变量声明
@@ -118,17 +121,55 @@ static void vTaskTaskUserIF(void *pvParameters)
 			{
 				switch (ucKeyCode)
 				{
-			/* K1键按下 打印任务执行情况 */
-			case KEY_DOWN_K1:			 
-				printf("=================================================\r\n");
-				printf("任务名      任务状态 优先级   剩余栈 任务序号\r\n");
-				vTaskList((char *)&pcWriteBuffer);
-				printf("%s\r\n", pcWriteBuffer);
+			 /* K1键按下 打印任务执行情况 */
+			 case KEY_DOWN_K1:			 
+				 printf("=================================================\r\n");
+				 printf("任务名      任务状态 优先级   剩余栈 任务序号\r\n");
+				 vTaskList((char *)&pcWriteBuffer);
+				 printf("%s\r\n", pcWriteBuffer);
 				
-				printf("\r\n任务名       运行计数         使用率\r\n");
-				vTaskGetRunTimeStats((char *)&pcWriteBuffer);
-				printf("%s\r\n", pcWriteBuffer);
-			break;
+				 printf("\r\n任务名       运行计数         使用率\r\n");
+				 vTaskGetRunTimeStats((char *)&pcWriteBuffer);
+				 printf("%s\r\n", pcWriteBuffer);
+			   break;
+			 
+#if 0 /*增加删除任务*/		 
+			 /* K2键按下 删除任务vTaskLED */
+				case KEY_DOWN_K2:			 
+					printf("K2键按下，删除任务vTaskLED\r\n");
+					if(xHandleTaskLED != NULL)
+					{
+						vTaskDelete(xHandleTaskLED);
+						xHandleTaskLED = NULL;
+					}
+					break;
+					
+				/* K3键按下 重新创建任务vTaskLED */
+				case KEY_DOWN_K3:	
+					printf("K3键按下，重新创建任务vTaskLED\r\n");
+					if(xHandleTaskLED == NULL)
+					{
+						xTaskCreate(    vTaskLED,            /* 任务函数  */
+										"vTaskLED",          /* 任务名    */
+										512,                 /* stack大小，单位word，也就是4字节 */
+										NULL,                /* 任务参数  */
+										2,                   /* 任务优先级*/
+										&xHandleTaskLED );   /* 任务句柄  */
+					}
+					break;
+#endif /*增加删除任务*/	
+					
+				/* K2键长按下，挂起任务vTaskLED */
+				case KEY_LONG_K2:
+					printf("K2键长按下，挂起任务vTaskLED\r\n");
+					vTaskSuspend(xHandleTaskLED);
+					break;
+				
+				/* K3键长按下，恢复任务vTaskLED */
+				case KEY_DOWN_K3:
+				  printf("K3键按下，启动单次定时器中断，50ms后在定时器中断将任务vTaskLED恢复\r\n");
+					bsp_StartHardTimer(1 ,50000, (void *)TIM_CallBack1);
+					break;
 				/* 其他的键值不处理 */
 				default:                     
 					break;
@@ -194,6 +235,27 @@ static void vTaskStart(void *pvParameters)
 		bsp_KeyScan();
         vTaskDelay(10);
     }
+}
+/*
+*********************************************************************************************************
+*	函 数 名: TIM_CallBack1
+*	功能说明: 定时器中断的回调函数，此函数被bsp_StartHardTimer所调用。		  			  
+*	形    参: 无
+*	返 回 值: 无
+*********************************************************************************************************
+*/
+static void TIM_CallBack1(void)
+{
+	BaseType_t xYieldRequired;
+
+     /* 恢复挂起任务 */
+     xYieldRequired = xTaskResumeFromISR(xHandleTaskLED);
+
+	 /* 退出中断后是否需要执行任务切换 */
+     if( xYieldRequired == pdTRUE )
+     {
+         portYIELD_FROM_ISR(xYieldRequired);
+     }
 }
 
 /*

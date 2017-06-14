@@ -13,7 +13,7 @@
 
 #ifndef __BSP_KEY_H
 #define __BSP_KEY_H
-
+#include "bsp.h"
 #define KEY_COUNT    10	   					/* 10  按键个数, 8个独立建 + 2个组合键 */
 
 #define KEY_SCAN_COUNT  3

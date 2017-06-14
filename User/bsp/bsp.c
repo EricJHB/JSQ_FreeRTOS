@@ -44,6 +44,8 @@ void bsp_Init(void)
 	bsp_InitLed(); 		/* 初始LED指示灯端口 */
 	bsp_InitKey();		/* 初始化按键 */
 	
+		bsp_InitHardTimer(); /* 初始化TIM2定时器 */
+	
 }
 
 /***************************** 安富莱电子 www.armfly.com (END OF FILE) *********************************/
