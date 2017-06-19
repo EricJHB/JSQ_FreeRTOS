@@ -6,16 +6,48 @@
 *	版    本 : V1.0
 *	说    明 : 本实验主要学习FreeRTOS的移植
 *              实验目的：
-*                 1. 学习FreeRTOS的移植。
+*                1. 学习FreeRTOS的任务栈溢出检测方法一（模拟栈溢出）。
+*                2. FreeRTOS的任务栈溢出检测方法一说明：
+*                   a. FreeRTOSConfig.h文件中配置宏定义：
+*                      #define  configCHECK_FOR_STACK_OVERFLOW   1
+*                   b. 在任务切换时检测任务栈指针是否过界了，如果过界了，在任务切换的时候会触发栈溢出钩子函数。
+*                      void vApplicationStackOverflowHook( TaskHandle_t xTask,
+*                                                          signed char *pcTaskName );
+*                      用户可以在钩子函数里面做一些处理。本实验是在钩子函数中打印出现栈溢出的任务。
+*                   c. 这种方法不能保证所有的栈溢出都能检测到。比如任务在执行的过程中发送过栈溢出。任务切换前
+*                      栈指针又恢复到了正常水平，这种情况在任务切换的时候是检测不到的。又比如任务栈溢出后，把
+*                      这部分栈区的数据修改了，这部分栈区的数据不重要或者暂时没有用到还好，如果是重要数据被修
+*                      改将直接导致系统进入硬件异常。这种情况下，栈溢出检测功能也是检测不到的。
+*                   d. 本实验就是简单的在任务vTaskUserIF中申请过大的栈空间，模拟出一种栈溢出的情况，溢出后触
+*                      发钩子函数，因为我们将溢出部分的数据修改了，进而造成进入硬件异常。
 *              实验内容：
-*                 1. 创建了如下四个任务：
-*                    vTaskTaskUserIF 任务: 接口消息处理，这里用作LED闪烁	
-*                    vTaskLED        任务: LED闪烁
-*                    vTaskMsgPro     任务: 信息处理，这里是用作LED闪烁
-*                    vTaskStart      任务: 启动任务，也就是最高优先级任务，这里用作LED闪烁
-*             1. K2长按下，挂起vTaskLED；
-*							2. K3键按下，启动单次定时器中断，50ms后在定时器中断将任务vTaskLED恢复。
-*              注意事项：
+*                1. 按下按键K1可以通过串口打印任务执行情况（波特率115200，数据位8，奇偶校验位无，停止位1）
+*                   =================================================
+*                   任务名      任务状态 优先级   剩余栈 任务序号
+*                   vTaskUserIF     R       1       318     1
+*                	IDLE            R       0       118     5
+*                	vTaskLED        B       2       490     2
+*                	vTaskMsgPro     B       3       490     3
+*               	vTaskStart      B       4       490     4
+*
+*                	任务名       运行计数         使用率
+*                	vTaskUserIF     467             <1%
+*                	IDLE            126495          99%
+*                	vTaskMsgPro     1               <1%
+*                	vTaskStart      639             <1%
+*                	vTaskLED        0               <1%
+*                  串口软件建议使用SecureCRT（V4光盘里面有此软件）查看打印信息。
+*                  各个任务实现的功能如下：
+*                   vTaskTaskUserIF 任务: 接口消息处理	
+*                   vTaskLED        任务: LED闪烁
+*                   vTaskMsgPro     任务: 消息处理，这里是用作LED闪烁
+*                   vTaskStart      任务: 启动任务，也就是最高优先级任务，这里实现按键扫描
+*                2. 任务运行状态的定义如下，跟上面串口打印字母B, R, D, S对应：
+*                    #define tskBLOCKED_CHAR		( 'B' )  阻塞
+*                    #define tskREADY_CHAR		    ( 'R' )  就绪
+*                    #define tskDELETED_CHAR		( 'D' )  删除
+*                    #define tskSUSPENDED_CHAR	    ( 'S' )  挂起
+*                3. K2按键按下，模拟栈溢出。
 *              注意事项：
 *                 1. 本实验推荐使用串口软件SecureCRT，要不串口打印效果不整齐。此软件在
 *                    V4开发板光盘里面有。
@@ -99,6 +131,48 @@ int main(void)
 	while(1);
 }
 
+
+/*
+*********************************************************************************************************
+*	函 数 名: StackOverflowTest
+*	功能说明: 任务栈溢出测试
+*	形    参: 无
+*	返 回 值: 无
+*********************************************************************************************************
+*/
+static void StackOverflowTest(void)
+{
+	int16_t i;
+	uint8_t buf[2048];
+	
+	(void)buf; /* 防止警告 */
+	
+	/*
+	  1. 为了能够模拟任务栈溢出，并触发任务栈溢出函数，这里强烈建议使用数组的时候逆着赋值。
+	     因为对于M3和M4内核的MCU，堆栈生长方向是向下生长的满栈。即高地址是buf[2047], 低地址
+	     是buf[0]。如果任务栈溢出了，也是从高地址buf[2047]到buf[0]的某个地址开始溢出。
+	        因此，如果用户直接修改的是buf[0]开始的数据且这些溢出部分的数据比较重要，会直接导致
+	     进入到硬件异常。
+	  2. 栈溢出检测是在任务切换的时候执行的，我们这里加个延迟函数，防止修改了重要的数据导致直接
+	     进入硬件异常。
+	  3. 任务vTaskTaskUserIF的栈空间大小是2048字节，在此任务的入口已经申请了栈空间大小
+		 ------uint8_t ucKeyCode;
+	     ------uint8_t pcWriteBuffer[500];
+	     这里再申请如下这么大的栈空间
+	     -------int16_t i;
+		 -------uint8_t buf[2048];
+	     必定溢出。
+	*/
+		//for(i = 0; i <= 2017; i++)
+	for(i = 2047; i >= 0; i--)
+	{
+		printf("|%d",i);
+		buf[i] = 0x55;
+	
+		vTaskDelay(1);
+	}
+}
+
 /*
 *********************************************************************************************************
 *	函 数 名: vTaskTaskUserIF
@@ -159,10 +233,9 @@ static void vTaskTaskUserIF(void *pvParameters)
 					break;
 #endif /*增加删除任务*/	
 					
-				/* K2键长按下，挂起任务vTaskLED */
-				case KEY_LONG_K2:
-					printf("K2键长按下，挂起任务vTaskLED\r\n");
-					vTaskSuspend(xHandleTaskLED);
+				case KEY_DOWN_K2:			 
+					printf("K2键按下，模拟任务栈溢出检测\r\n");
+					StackOverflowTest();
 					break;
 				
 				/* K3键长按下，恢复任务vTaskLED */
@@ -229,8 +302,21 @@ static void vTaskMsgPro(void *pvParameters)
 */
 static void vTaskStart(void *pvParameters)
 {
+		/* 
+	  开始执行启动任务主函数前使能独立看门狗。
+	  设置LSI是128分频，下面函数参数范围0-0xFFF，分别代表最小值3.2ms和最大值13107.2ms
+	  下面设置的是10s，如果10s内没有喂狗，系统复位。
+	*/
+	bsp_InitIwdg(0x35);
+	
+	/* 打印系统开机状态，方便查看系统是否复位 */
+	printf("=====================================================\r\n");
+	printf("=系统开机执行\r\n");
+	printf("=====================================================\r\n");
+	
     while(1)
     {
+			IWDG_Feed();
 		/* 按键扫描 */
 		bsp_KeyScan();
         vTaskDelay(10);
@@ -257,7 +343,19 @@ static void TIM_CallBack1(void)
          portYIELD_FROM_ISR(xYieldRequired);
      }
 }
-
+/*
+*********************************************************************************************************
+*	函 数 名: vApplicationStackOverflowHook
+*	功能说明: 栈溢出的钩子函数
+*	形    参: xTask        任务句柄
+*             pcTaskName   任务名
+*	返 回 值: 无
+*********************************************************************************************************
+*/
+void vApplicationStackOverflowHook( TaskHandle_t xTask, signed char *pcTaskName )
+{
+	printf("任务：%s 发现栈溢出\r\n", pcTaskName);
+}
 /*
 *********************************************************************************************************
 *	函 数 名: AppTaskCreate

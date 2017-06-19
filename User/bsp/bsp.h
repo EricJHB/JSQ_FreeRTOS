@@ -75,6 +75,7 @@
 #include "bsp_key.h"
 #include "bsp_dwt.h"
 
+#include "bsp_iwdg.h"
 //#include "bsp_msg.h"
 
 //#include "bsp_beep.h"

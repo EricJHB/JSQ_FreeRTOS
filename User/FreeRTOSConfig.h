@@ -101,6 +101,8 @@
 #define configUSE_16_BIT_TICKS		0
 #define configIDLE_SHOULD_YIELD		1
 
+/*打开FreeRTOS的任务栈溢出检测方法一*/
+#define configCHECK_FOR_STACK_OVERFLOW   1
 
 /* Co-routine definitions. */
 #define configUSE_CO_ROUTINES 		0
