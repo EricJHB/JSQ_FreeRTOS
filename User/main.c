@@ -235,7 +235,7 @@ static void vTaskTaskUserIF(void *pvParameters)
 					
 				case KEY_DOWN_K2:			 
 					printf("K2键按下，模拟任务栈溢出检测\r\n");
-					StackOverflowTest();
+					//StackOverflowTest();
 					break;
 				
 				/* K3键长按下，恢复任务vTaskLED */
@@ -266,10 +266,12 @@ static void vTaskTaskUserIF(void *pvParameters)
 */
 static void vTaskLED(void *pvParameters)
 {
+	static uint16_t time=0;
     while(1)
     {
+			printf("时间：%d S\r\n",time++);
 		bsp_LedToggle(2);
-        vTaskDelay(200);
+        vTaskDelay(1000);
     }
 }
 
@@ -287,7 +289,7 @@ static void vTaskMsgPro(void *pvParameters)
     while(1)
     {
 		bsp_LedToggle(3);
-        vTaskDelay(300);
+        vTaskDelay(500);
     }
 }
 
