@@ -143,7 +143,7 @@ int main(void)
 static void StackOverflowTest(void)
 {
 	int16_t i;
-	uint8_t buf[2048];
+	uint8_t buf[1300];
 	
 	(void)buf; /* 防止警告 */
 	
@@ -164,7 +164,7 @@ static void StackOverflowTest(void)
 	     必定溢出。
 	*/
 		//for(i = 0; i <= 2017; i++)
-	for(i = 2047; i >= 0; i--)
+	for(i = 1299; i >= 0; i--)
 	{
 		printf("|%d",i);
 		buf[i] = 0x55;
@@ -266,10 +266,19 @@ static void vTaskTaskUserIF(void *pvParameters)
 */
 static void vTaskLED(void *pvParameters)
 {
+	TickType_t xLastWakeTime;
+	const TickType_t xFrequency = 300;
+	uint16_t i=0,j=0;
+	
+	/*获取当前系统时间*/
+	xLastWakeTime = xTaskGetTickCount();
+	
     while(1)
     {
-		bsp_LedToggle(2);
-        vTaskDelay(200);
+		    bsp_LedToggle(2);
+			for(i=0;i<6000;i++)
+			 for(j=0;j<60;j++);
+        vTaskDelayUntil(&xLastWakeTime,xFrequency);
     }
 }
 
@@ -284,9 +293,12 @@ static void vTaskLED(void *pvParameters)
 */
 static void vTaskMsgPro(void *pvParameters)
 {
+	uint16_t i=0,j=0;
     while(1)
     {
 		bsp_LedToggle(3);
+	  for(i=0;i<6000;i++)
+			for(j=0;j<60;j++);
         vTaskDelay(300);
     }
 }
