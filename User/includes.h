@@ -45,6 +45,7 @@
 #include "task.h"
 #include "queue.h"
 #include "croutine.h"
+#include "event_groups.h"
 
 
 /*

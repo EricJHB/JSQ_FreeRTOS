@@ -65,8 +65,14 @@
 */
 #include "includes.h"
 
-
-
+/*
+**********************************************************************************************************
+											宏定义
+**********************************************************************************************************
+*/
+#define BIT_0	(1 << 0)
+#define BIT_1	(1 << 1)
+#define BIT_ALL (BIT_0 | BIT_1)
 /*
 **********************************************************************************************************
 											函数声明
@@ -78,6 +84,7 @@ static void vTaskMsgPro(void *pvParameters);
 static void vTaskStart(void *pvParameters);
 static void AppTaskCreate (void);
 static void TIM_CallBack1(void);
+static void AppObjCreate (void);
 /*
 **********************************************************************************************************
 											变量声明
@@ -87,6 +94,8 @@ static TaskHandle_t xHandleTaskUserIF = NULL;
 static TaskHandle_t xHandleTaskLED = NULL;
 static TaskHandle_t xHandleTaskMsgPro = NULL;
 static TaskHandle_t xHandleTaskStart = NULL;
+/*事件标志组测试使用*/
+static EventGroupHandle_t xCreatedEventGroup = NULL;
 
 /*
 *********************************************************************************************************
@@ -120,6 +129,9 @@ int main(void)
 	/* 创建任务 */
 	AppTaskCreate();
 	
+	
+	/* 创建任务通信机制 */
+	AppObjCreate();
     /* 启动调度，开始执行任务 */
     vTaskStartScheduler();
 
@@ -186,6 +198,7 @@ static void vTaskTaskUserIF(void *pvParameters)
 {
 	uint8_t ucKeyCode;
 	uint8_t pcWriteBuffer[500];
+	EventBits_t uxBits;
 	
     while(1)
     {
@@ -233,15 +246,32 @@ static void vTaskTaskUserIF(void *pvParameters)
 					break;
 #endif /*增加删除任务*/	
 					
-				case KEY_DOWN_K2:			 
-					printf("K2键按下，模拟任务栈溢出检测\r\n");
-					StackOverflowTest();
+				/* K2键按下，直接发送事件标志给任务vTaskMsgPro，设置bit0 */
+				case KEY_DOWN_K2:
+					/* 设置事件标志组的bit0 */
+					uxBits = xEventGroupSetBits(xCreatedEventGroup, BIT_0);
+					if((uxBits & BIT_0) != 0)
+					{
+						printf("K2键按下，事件标志的bit0被设置\r\n");
+					}
+					else
+					{
+						printf("K2键按下，事件标志的bit0被清除，说明任务vTaskMsgPro已经接受到bit0和bit1被设置的情况\r\n");
+					}
 					break;
-				
-				/* K3键长按下，恢复任务vTaskLED */
+					
+				/* K3键按下，直接发送事件标志给任务vTaskMsgPro，设置bit1 */
 				case KEY_DOWN_K3:
-				  printf("K3键按下，启动单次定时器中断，50ms后在定时器中断将任务vTaskLED恢复\r\n");
-					bsp_StartHardTimer(1 ,50000, (void *)TIM_CallBack1);
+					/* 设置事件标志组的bit1 */
+					uxBits = xEventGroupSetBits(xCreatedEventGroup, BIT_1);
+					if((uxBits & BIT_1) != 0)
+					{
+						printf("K3键按下，事件标志的bit1被设置\r\n");
+					}
+					else
+					{
+						printf("K3键按下，事件标志的bit1被清除，说明任务vTaskMsgPro已经接受到bit0和bit1被设置的情况\r\n");
+					}
 					break;
 				/* 其他的键值不处理 */
 				default:                     
@@ -266,6 +296,7 @@ static void vTaskTaskUserIF(void *pvParameters)
 */
 static void vTaskLED(void *pvParameters)
 {
+#if 0
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = 300;
 	uint16_t i=0,j=0;
@@ -280,6 +311,18 @@ static void vTaskLED(void *pvParameters)
 			 for(j=0;j<60;j++);
         vTaskDelayUntil(&xLastWakeTime,xFrequency);
     }
+#else
+		static uint16_t count=0;
+			uint16_t i=0,j=0;
+    while(1)
+    {
+		bsp_LedToggle(2);
+	  for(i=0;i<6000;i++)
+			for(j=0;j<60;j++);
+        vTaskDelay(300);
+			printf("vTaskLED:%d\r\n",count++);
+    }
+#endif
 }
 
 /*
@@ -293,13 +336,28 @@ static void vTaskLED(void *pvParameters)
 */
 static void vTaskMsgPro(void *pvParameters)
 {
-	uint16_t i=0,j=0;
+EventBits_t uxBits;
+	const TickType_t xTicksToWait = 100 / portTICK_PERIOD_MS; /* 最大延迟100ms */
+	
     while(1)
     {
-		bsp_LedToggle(3);
-	  for(i=0;i<6000;i++)
-			for(j=0;j<60;j++);
-        vTaskDelay(300);
+		/* 等K2按键按下设置bit0和K3按键按下设置bit1 */
+		uxBits = xEventGroupWaitBits(xCreatedEventGroup, /* 事件标志组句柄 */
+							                   BIT_ALL,            /* 等待bit0和bit1被设置 */
+							                   pdTRUE,             /* 退出前bit0和bit1被清除，这里是bit0和bit1都被设置才表示“退出”*/
+							                   pdTRUE,             /* 设置为pdTRUE表示等待bit1和bit0都被设置*/
+							                   xTicksToWait); 	   /* 等待延迟时间 */
+		
+		if((uxBits & BIT_ALL) == BIT_ALL)
+		{
+			/* 接收到bit1和bit0都被设置的消息 */
+			printf("接收到bit0和bit1都被设置的消息\r\n");
+		}
+		else
+		{
+			/* 超时，另外注意仅接收到一个按键按下的消息时，变量uxBits的相应bit也是被设置的 */
+			bsp_LedToggle(3);
+		}
     }
 }
 
@@ -354,6 +412,24 @@ static void TIM_CallBack1(void)
      {
          portYIELD_FROM_ISR(xYieldRequired);
      }
+}
+/*
+*********************************************************************************************************
+*	函 数 名: AppObjCreate
+*	功能说明: 创建任务通信机制
+*	形    参: 无
+*	返 回 值: 无
+*********************************************************************************************************
+*/
+static void AppObjCreate(void)
+{
+	/*创建事件标志组*/
+	xCreatedEventGroup = xEventGroupCreate();
+	
+	if(xCreatedEventGroup == NULL)
+	{
+		/*没创建成功，在此加入创建失败处理机制*/
+	}
 }
 /*
 *********************************************************************************************************
