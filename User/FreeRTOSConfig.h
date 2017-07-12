@@ -89,10 +89,13 @@
 #define configUSE_TICK_HOOK			0
 #define configCPU_CLOCK_HZ			( ( unsigned long ) 72000000 )	
 #define configTICK_RATE_HZ			( ( TickType_t ) 1000 )
-#define configMAX_PRIORITIES		( 5 )
+#define configMAX_PRIORITIES		( 6 )//5  允许最大优先级
 #define configMINIMAL_STACK_SIZE	( ( unsigned short ) 128 )
 #define configTOTAL_HEAP_SIZE		( ( size_t ) ( 17 * 1024 ) )
 #define configMAX_TASK_NAME_LEN		( 16 )
+#define configUSE_TRACE_FACILITY	1
+#define configUSE_16_BIT_TICKS		0
+#define configIDLE_SHOULD_YIELD		1
 
 #ifndef  __SysInfoTest
 #define configUSE_TRACE_FACILITY	0
@@ -118,6 +121,14 @@ to exclude the API function. */
 #define INCLUDE_vTaskSuspend			1
 #define INCLUDE_vTaskDelayUntil			1
 #define INCLUDE_vTaskDelay				1
+#define INCLUDE_xEventGroupSetBitFromISR  1
+#define INCLUDE_xTimerPendFunctionCall    1
+
+/* Software timer definitions. */
+#define configUSE_TIMERS				  1
+#define configTIMER_TASK_PRIORITY		( 5 )
+#define configTIMER_QUEUE_LENGTH		  20
+#define configTIMER_TASK_STACK_DEPTH	( configMINIMAL_STACK_SIZE * 2 )
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS

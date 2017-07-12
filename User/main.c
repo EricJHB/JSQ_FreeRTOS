@@ -84,6 +84,7 @@ static void vTaskMsgPro(void *pvParameters);
 static void vTaskStart(void *pvParameters);
 static void AppTaskCreate (void);
 static void TIM_CallBack1(void);
+static void TIM_CallBack2(void);
 static void AppObjCreate (void);
 /*
 **********************************************************************************************************
@@ -246,32 +247,16 @@ static void vTaskTaskUserIF(void *pvParameters)
 					break;
 #endif /*增加删除任务*/	
 					
-				/* K2键按下，直接发送事件标志给任务vTaskMsgPro，设置bit0 */
+				/* K2键按下，启动单次定时器中断，50ms后在定时器中断给任务vTaskMsgPro发送事件标志 */
 				case KEY_DOWN_K2:
-					/* 设置事件标志组的bit0 */
-					uxBits = xEventGroupSetBits(xCreatedEventGroup, BIT_0);
-					if((uxBits & BIT_0) != 0)
-					{
-						printf("K2键按下，事件标志的bit0被设置\r\n");
-					}
-					else
-					{
-						printf("K2键按下，事件标志的bit0被清除，说明任务vTaskMsgPro已经接受到bit0和bit1被设置的情况\r\n");
-					}
+					printf("K2键按下，启动单次定时器中断，50ms后在定时器中断给任务vTaskMsgPro发送事件标志\r\n");
+					bsp_StartHardTimer(1 ,50000, (void *)TIM_CallBack1);
 					break;
-					
-				/* K3键按下，直接发送事件标志给任务vTaskMsgPro，设置bit1 */
+				
+				/* K3键按下，启动单次定时器中断，50ms后在定时器中断给任务vTaskMsgPro发送事件标志 */
 				case KEY_DOWN_K3:
-					/* 设置事件标志组的bit1 */
-					uxBits = xEventGroupSetBits(xCreatedEventGroup, BIT_1);
-					if((uxBits & BIT_1) != 0)
-					{
-						printf("K3键按下，事件标志的bit1被设置\r\n");
-					}
-					else
-					{
-						printf("K3键按下，事件标志的bit1被清除，说明任务vTaskMsgPro已经接受到bit0和bit1被设置的情况\r\n");
-					}
+					printf("K3键按下，启动单次定时器中断，50ms后在定时器中断给任务vTaskMsgPro发送事件标志\r\n");
+					bsp_StartHardTimer(2 ,50000, (void *)TIM_CallBack2);
 					break;
 				/* 其他的键值不处理 */
 				default:                     
@@ -320,7 +305,7 @@ static void vTaskLED(void *pvParameters)
 	  for(i=0;i<6000;i++)
 			for(j=0;j<60;j++);
         vTaskDelay(300);
-			printf("vTaskLED:%d\r\n",count++);
+			//printf("vTaskLED:%d\r\n",count++);
     }
 #endif
 }
@@ -394,7 +379,7 @@ static void vTaskStart(void *pvParameters)
 }
 /*
 *********************************************************************************************************
-*	函 数 名: TIM_CallBack1
+*	函 数 名: TIM_CallBack1和TIM_CallBack2
 *	功能说明: 定时器中断的回调函数，此函数被bsp_StartHardTimer所调用。		  			  
 *	形    参: 无
 *	返 回 值: 无
@@ -402,16 +387,38 @@ static void vTaskStart(void *pvParameters)
 */
 static void TIM_CallBack1(void)
 {
-	BaseType_t xYieldRequired;
+	BaseType_t xResult;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	
+	/* 向任务vTaskMsgPro发送事件标志 */
+	xResult = xEventGroupSetBitsFromISR(xCreatedEventGroup, /* 事件标志组句柄 */
+									    BIT_0 ,             /* 设置bit0 */
+									    &xHigherPriorityTaskWoken );
 
-     /* 恢复挂起任务 */
-     xYieldRequired = xTaskResumeFromISR(xHandleTaskLED);
+	/* 消息被成功发出 */
+	if( xResult != pdFAIL )
+	{
+		/* 如果xHigherPriorityTaskWoken = pdTRUE，那么退出中断后切到当前最高优先级任务执行 */
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+}
 
-	 /* 退出中断后是否需要执行任务切换 */
-     if( xYieldRequired == pdTRUE )
-     {
-         portYIELD_FROM_ISR(xYieldRequired);
-     }
+static void TIM_CallBack2(void)
+{
+	BaseType_t xResult;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	
+	/* 向任务vTaskMsgPro发送事件标志 */
+	xResult = xEventGroupSetBitsFromISR(xCreatedEventGroup, /* 事件标志组句柄 */
+									    BIT_1,              /* 设置bit1 */
+									    &xHigherPriorityTaskWoken );
+
+	/* 消息被成功发出 */
+	if( xResult != pdFAIL )
+	{
+		/* 如果xHigherPriorityTaskWoken = pdTRUE，那么退出中断后切到当前最高优先级任务执行 */
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
 }
 /*
 *********************************************************************************************************
