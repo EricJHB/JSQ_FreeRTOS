@@ -1,0 +1,8 @@
+学习FreeRTOS使用
+
+修改测试例程代码
+
+使用armfly教程，内容详细，推荐使用入门
+
+硬件环境：
+MCU:STM32F103VET6/STM32F103ZET6
