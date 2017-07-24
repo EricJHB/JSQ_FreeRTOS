@@ -78,6 +78,7 @@ static void vTaskMsgPro(void *pvParameters);
 static void vTaskStart(void *pvParameters);
 static void AppTaskCreate (void);
 static void TIM_CallBack1(void);
+static void AppObjCreate (void);
 /*
 **********************************************************************************************************
 											变量声明
@@ -87,7 +88,19 @@ static TaskHandle_t xHandleTaskUserIF = NULL;
 static TaskHandle_t xHandleTaskLED = NULL;
 static TaskHandle_t xHandleTaskMsgPro = NULL;
 static TaskHandle_t xHandleTaskStart = NULL;
+/* 消息队列 */
+static QueueHandle_t xQueue1 = NULL;
+static QueueHandle_t xQueue2 = NULL;
 
+
+typedef struct Msg
+{
+	uint8_t  ucMessageID;
+	uint16_t usData[2];
+	uint32_t ulData[2];
+}MSG_T;
+
+MSG_T   g_tMsg; /* 定义一个结构体用于消息队列 */
 /*
 *********************************************************************************************************
 *	函 数 名: main
@@ -119,7 +132,8 @@ int main(void)
 	vSetupSysInfoTest();
 	/* 创建任务 */
 	AppTaskCreate();
-	
+	/* 创建任务通信机制 */
+	AppObjCreate();
     /* 启动调度，开始执行任务 */
     vTaskStartScheduler();
 
@@ -184,8 +198,13 @@ static void StackOverflowTest(void)
 */
 static void vTaskTaskUserIF(void *pvParameters)
 {
+	MSG_T   *ptMsg;
+	uint8_t ucCount = 0;
 	uint8_t ucKeyCode;
 	uint8_t pcWriteBuffer[500];
+	
+	/* 初始化结构体指针 */
+	ptMsg = &g_tMsg;
 	
     while(1)
     {
@@ -233,16 +252,44 @@ static void vTaskTaskUserIF(void *pvParameters)
 					break;
 #endif /*增加删除任务*/	
 					
-				case KEY_DOWN_K2:			 
-					printf("K2键按下，模拟任务栈溢出检测\r\n");
-					//StackOverflowTest();
+	/* K2键按下，向xQueue1发送数据 */
+				case KEY_DOWN_K2:
+					ucCount++;
+				
+					/* 向消息队列发数据，如果消息队列满了，等待10个时钟节拍 */
+					if( xQueueSend(xQueue1,
+								   (void *) &ucCount,
+								   (TickType_t)10) != pdPASS )
+					{
+						/* 发送失败，即使等待了10个时钟节拍 */
+						printf("K2键按下，向xQueue1发送数据失败，即使等待了10个时钟节拍\r\n");
+					}
+					else
+					{
+						/* 发送成功 */
+						printf("K2键按下，向xQueue1发送数据成功\r\n");						
+					}
 					break;
 				
-				/* K3键长按下，恢复任务vTaskLED */
+				/* K3键按下，向xQueue2发送数据 */
 				case KEY_DOWN_K3:
-				  printf("K3键按下，启动单次定时器中断，50ms后在定时器中断将任务vTaskLED恢复\r\n");
-					bsp_StartHardTimer(1 ,50000, (void *)TIM_CallBack1);
-					break;
+					ptMsg->ucMessageID++;
+					ptMsg->ulData[0]++;;
+					ptMsg->usData[0]++;
+					
+					/* 使用消息队列实现指针变量的传递 */
+					if(xQueueSend(xQueue2,                  /* 消息队列句柄 */
+								 (void *) &ptMsg,           /* 发送结构体指针变量ptMsg的地址 */
+								 (TickType_t)10) != pdPASS )
+					{
+						/* 发送失败，即使等待了10个时钟节拍 */
+						printf("K3键按下，向xQueue2发送数据失败，即使等待了10个时钟节拍\r\n");
+					}
+					else
+					{
+						/* 发送成功 */
+						printf("K3键按下，向xQueue2发送数据成功\r\n");						
+					}
 				/* 其他的键值不处理 */
 				default:                     
 					break;
@@ -266,12 +313,30 @@ static void vTaskTaskUserIF(void *pvParameters)
 */
 static void vTaskLED(void *pvParameters)
 {
-	static uint16_t time=0;
+	MSG_T *ptMsg;
+	BaseType_t xResult;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(200); /* 设置最大等待时间为200ms */
+	
     while(1)
     {
-			printf("时间：%d S\r\n",time++);
-		bsp_LedToggle(2);
-        vTaskDelay(1000);
+		xResult = xQueueReceive(xQueue2,                   /* 消息队列句柄 */
+		                        (void *)&ptMsg,  		   /* 这里获取的是结构体的地址 */
+		                        (TickType_t)xMaxBlockTime);/* 设置阻塞时间 */
+		
+		
+		if(xResult == pdPASS)
+		{
+			/* 成功接收，并通过串口将数据打印出来 */
+			printf("接收到消息队列数据ptMsg->ucMessageID = %d\r\n", ptMsg->ucMessageID);
+			printf("接收到消息队列数据ptMsg->ulData[0] = %d\r\n", ptMsg->ulData[0]);
+			printf("接收到消息队列数据ptMsg->usData[0] = %d\r\n", ptMsg->usData[0]);
+		}
+		else
+		{
+			/* 超时 */
+			bsp_LedToggle(2);
+			bsp_LedToggle(3);
+		}
     }
 }
 
@@ -398,5 +463,28 @@ static void AppTaskCreate (void)
                  4,              		/* 任务优先级*/
                  &xHandleTaskStart );   /* 任务句柄  */
 }
-
+/*
+*********************************************************************************************************
+*	函 数 名: AppObjCreate
+*	功能说明: 创建任务通信机制
+*	形    参: 无
+*	返 回 值: 无
+*********************************************************************************************************
+*/
+static void AppObjCreate (void)
+{
+	/* 创建10个uint8_t型消息队列 */
+	xQueue1 = xQueueCreate(10, sizeof(uint8_t));
+    if( xQueue1 == 0 )
+    {
+        /* 没有创建成功，用户可以在这里加入创建失败的处理机制 */
+    }
+	
+	/* 创建10个存储指针变量的消息队列，由于CM3/CM4内核是32位机，一个指针变量占用4个字节 */
+	xQueue2 = xQueueCreate(10, sizeof(struct Msg *));
+    if( xQueue2 == 0 )
+    {
+        /* 没有创建成功，用户可以在这里加入创建失败的处理机制 */
+    }
+}
 /***************************** BayNexus (END OF FILE) *********************************/
