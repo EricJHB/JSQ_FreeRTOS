@@ -91,7 +91,7 @@ static TaskHandle_t xHandleTaskStart = NULL;
 /* 消息队列 */
 static QueueHandle_t xQueue1 = NULL;
 static QueueHandle_t xQueue2 = NULL;
-
+static uint32_t msg_ucCount = 0;
 
 typedef struct Msg
 {
@@ -257,7 +257,7 @@ static void vTaskTaskUserIF(void *pvParameters)
 					ucCount++;
 				
 					/* 向消息队列发数据，如果消息队列满了，等待10个时钟节拍 */
-					if( xQueueSend(xQueue1,
+					if( xQueueSend(xQueue2,
 								   (void *) &ucCount,
 								   (TickType_t)10) != pdPASS )
 					{
@@ -294,9 +294,10 @@ static void vTaskTaskUserIF(void *pvParameters)
 				default:                     
 					break;
 			}
-			bsp_LedToggle(1);
+			//bsp_LedToggle(1);
 		}
-		
+			bsp_LedToggle(1);
+		IWDG_Feed();
 		vTaskDelay(20);
 		
 	}
@@ -334,8 +335,9 @@ static void vTaskLED(void *pvParameters)
 		else
 		{
 			/* 超时 */
+			//printf("接收到消息队列数据超时\r\n");
 			bsp_LedToggle(2);
-			bsp_LedToggle(3);
+			//bsp_LedToggle(3);
 		}
     }
 }
@@ -351,10 +353,55 @@ static void vTaskLED(void *pvParameters)
 */
 static void vTaskMsgPro(void *pvParameters)
 {
+	uint32_t led_on_time;
+	uint32_t type = 0;
+	uint32_t count_old;
+	uint32_t led_on_time_old;
+	BaseType_t xResult;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(100); /* 设置最大等待时间为100ms */
     while(1)
     {
-		bsp_LedToggle(3);
-        vTaskDelay(500);
+			led_on_time = msg_ucCount%200;//周期10ms 三角波
+
+			if(ulHighFrequencyTimerTicks != count_old)//频率50us一次
+			{
+				if(type == 0)
+				{
+					if(led_on_time == 0 && led_on_time!=led_on_time_old)type = 1; 
+					if(ulHighFrequencyTimerTicks%200 >= led_on_time)//周期5ms
+					{
+						bsp_LedOn(3);
+						bsp_LedOn(4);
+					}
+					else 
+					{
+						bsp_LedOff(3);
+						bsp_LedOff(4);
+					}
+				}
+				else
+				{
+					if(led_on_time == 0 && led_on_time!=led_on_time_old)type = 0; 
+					if(ulHighFrequencyTimerTicks%200 >= led_on_time)//周期5ms
+					{
+						bsp_LedOff(3);
+						bsp_LedOff(4);
+					}
+					else 
+					{
+						bsp_LedOn(3);
+						bsp_LedOn(4);
+					}
+				}
+				count_old = ulHighFrequencyTimerTicks;
+				led_on_time_old = led_on_time;
+			}
+			/*
+			bsp_LedOn(3);
+			vTaskDelay(led_on_time);
+			bsp_LedOff(3);
+			vTaskDelay(5-led_on_time);
+			*/
     }
 }
 
@@ -374,7 +421,7 @@ static void vTaskStart(void *pvParameters)
 	  设置LSI是128分频，下面函数参数范围0-0xFFF，分别代表最小值3.2ms和最大值13107.2ms
 	  下面设置的是10s，如果10s内没有喂狗，系统复位。
 	*/
-	bsp_InitIwdg(0x35);
+	//bsp_InitIwdg(0x35);
 	
 	/* 打印系统开机状态，方便查看系统是否复位 */
 	printf("=====================================================\r\n");
@@ -383,10 +430,26 @@ static void vTaskStart(void *pvParameters)
 	
     while(1)
     {
+			msg_ucCount++;
+			#if 0
+								/* 向消息队列发数据，如果消息队列满了，等待10个时钟节拍 */
+					if( xQueueSend(xQueue1,
+								   (void *) &ucCount,
+								   (TickType_t)10) != pdPASS )
+					{
+						/* 发送失败，即使等待了10个时钟节拍 */
+						printf("向xQueue1发送数据失败，即使等待了10个时钟节拍\r\n");
+					}
+					else
+					{
+						/* 发送成功 */
+						printf("向xQueue1发送数据成功\r\n");						
+					}
+					#endif
 			IWDG_Feed();
 		/* 按键扫描 */
-		bsp_KeyScan();
-        vTaskDelay(10);
+		  bsp_KeyScan();
+      vTaskDelay(20);
     }
 }
 /*
@@ -403,7 +466,7 @@ static void TIM_CallBack1(void)
 
      /* 恢复挂起任务 */
      xYieldRequired = xTaskResumeFromISR(xHandleTaskLED);
-
+		printf("============TIM_CallBack1=========================\r\n");
 	 /* 退出中断后是否需要执行任务切换 */
      if( xYieldRequired == pdTRUE )
      {
